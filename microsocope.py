@@ -20,8 +20,8 @@ class Laser(dj.Manual):
     definition = """
     laser_name:     varchar(32)
     ---
-    laser_model:
-    laser_serial:
+    laser_model:    varchar(64)
+    laser_serial:   varchar(64)
     """
 
 
@@ -31,7 +31,7 @@ class LaserMaintenance(dj.Manual):
     -> Laser
     laser_maintenance_time:    datetime
     ---
-    type_of_maintenance:       enum('Clean filter of power', 'Clean filter of laser', 'Change coolant', 'Check PZT', 'Check Spectrum', 'Wavelength sweep')
+    type_of_maintenance:       enum("Clean filter of power", "Clean filter of laser", "Change coolant", "Check PZT", "Check Spectrum", "Wavelength sweep")
     maintenance_notes='':      varchar(255)
     """
 
@@ -74,11 +74,11 @@ class ObjectiveLensType(dj.Manual):
 @schema
 class ScannerType(dj.Manual):
     definition = """
-    scanner_type:              enum('galvo', 'resonance')
+    scanner_type:              enum("galvo", "resonance")
     ---
     resonance_freq=null:       int
     mirror_size:               int    # in mm
-    scanner_config:            enum('xy', 'xyy', 'conjugated x and y', 'other')
+    scanner_config:            enum("xy", "xyy", "conjugated x and y", "other")
     scanner_info='':           varchar(512)
     """
 
@@ -165,7 +165,7 @@ class FilterStatus(dj.Manual):
         filter_id:     tinyint
         ---
         -> FilterType
-        filter_location:  eum('entrance of the emission path', 'pmt')
+        filter_location:  enum("entrance of the emission path", "pmt")
         """
 
 
@@ -173,7 +173,7 @@ class FilterStatus(dj.Manual):
 class ObjectiveStatus(dj.Manual):
     definition = """
     -> Microscope
-    objective_config_date:  dates
+    objective_config_date:  date
     """
 
     class Objective(dj.Part):
