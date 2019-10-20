@@ -35,12 +35,24 @@ class LaserMaintenance(dj.Manual):
     maintenance_notes='':      varchar(255)
     """
 
+
+@schema
+class LaserStatus(dj.Manual):
+    definition = """
+    # the status of a laser and microscope coupling from the laser_change_date
+    -> Microscope
+    -> Laser
+    laser_change_date:    date
+    """
+
+
 @schema
 class Channel(dj.Manual):
     definition = """
     -> Microscope
     channel_name:  varchar(16)
     """
+
 
 @schema
 class DichroicMirrorType(dj.Manual):
@@ -52,6 +64,7 @@ class DichroicMirrorType(dj.Manual):
     mirror_spectrum=null:    varchar(255) # link to google drive picture
     """
 
+
 @schema
 class FilterType(dj.Manual):
     definition = """
@@ -62,6 +75,7 @@ class FilterType(dj.Manual):
     filter_spectrum=null:    varchar(255) # link to google drive picture
     """
 
+
 @schema
 class ObjectiveLensType(dj.Manual):
     definition = """
@@ -70,6 +84,7 @@ class ObjectiveLensType(dj.Manual):
     lens_brand='':         varchar(64)
     lens_model='':         varchar(64)
     """
+
 
 @schema
 class ScannerType(dj.Manual):
@@ -104,10 +119,12 @@ class PreAmplifierType(dj.Manual):
     amp_model='':  varchar(64)
     """
 
+
 @schema
 class DaqSystemType(dj.Lookup):
     definition = """
     daq_name:       varchar(64)
+    ---
     daq_notes='':   varchar(255)
     """
     contents = [
@@ -126,7 +143,7 @@ class AcquisitionSoftware(dj.Lookup):
 
 
 @schema
-class PmtIntallation(dj.Manual):
+class PmtInstallation(dj.Manual):
     definition = """
     -> Pmt
     pmt_install_date:      date
@@ -137,7 +154,7 @@ class PmtIntallation(dj.Manual):
 
 
 @schema
-class MirrorStatus(dj.Manual):
+class DichroicMirrorStatus(dj.Manual):
     definition = """
     -> Microscope
     mirror_config_date:   date
@@ -146,7 +163,7 @@ class MirrorStatus(dj.Manual):
     class Mirror(dj.Part):
         definition = """
         -> master
-        mirror_location:  varchar(32)
+        mirror_location:  enum('excitation path', 'detection box')
         ---
         -> DichroicMirrorType
         """
@@ -159,13 +176,21 @@ class FilterStatus(dj.Manual):
     filter_config_date:   date
     """
 
-    class Filter(dj.Part):
+    class MultiPhotonFilter(dj.Part):
         definition = """
+        # filter removing the near infrared lights and passing the whole visible spectrum
         -> master
-        filter_id:     tinyint
         ---
         -> FilterType
-        filter_location:  enum("entrance of the emission path", "pmt")
+        """
+
+    class PmtFilter(dj.Part):
+        definition = """
+        # filter removing the near infrared lights and passing the whole visible spectrum
+        -> master
+        -> Channel
+        ---
+        -> FilterType
         """
 
 
@@ -190,10 +215,16 @@ class PreAmplifierStatus(dj.Manual):
     definition = """
     -> Microscope
     amp_config_date:     date
-    ---
-    -> PreAmplifierType
-    amp_gain:           float
     """
+
+    class PreAmplifier(dj.Part):
+        definition = """
+        -> master
+        -> Channel
+        ---
+        -> PreAmplifierType
+        amp_gain:           float
+        """
 
 
 @schema
@@ -216,17 +247,29 @@ class AcquisitionSoftwareStatus(dj.Manual):
     """
 
 @schema
-class PsfStack(dj.Manual):
+class PsfStackData(dj.Manual):
     definition = """
     -> Microscope
     psf_date                    : date
     stack_num                   : smallint                      # stack number for that day
+    ---
+    stack_data                  : longblob
+    """
+
+
+@schema
+class PsfStackStats(dj.Manual):
+    definition = """
+    -> PsfStackData
     ---
     who                         : varchar(63)                   # who acquired the data
     lens_mag                    : decimal(5,2)                  # lens magnification
     na                          : decimal(3,2)                  # numerical aperture of the objective lens
     fov_x                       : float                         # (um) field of view at selected magnification
     fov_y                       : float                         # (um) field of view at selected magnification
+    mean_sigma_x                : float                         # full width at half magnitude, average over beads
+    mean_sigma_y                : float                         # full width at half magnitude, average over beads
+    mean_sigma_z                : float                         # full width at half magnitude, average over beads
     wavelength                  : smallint                      # (nm) laser wavelength
     mwatts                      : decimal(3,1)                  # mwatts out of objective
     path                        : varchar(1023)                 # file path
@@ -235,36 +278,34 @@ class PsfStack(dj.Manual):
     beadstack_ts=CURRENT_TIMESTAMP: timestamp                   # automatic
     """
 
-
-@schema
-class Psf(dj.Imported):
-    definition = """
-    -> PsfStack
-    bead_idx                    : smallint                      # bead number in the stack
-    ---
-    dx                          : float                         # (um) pixel pitch
-    dy                          : float                         # (um) pixel pitch
-    dz                          : float                         # (um) slice pitch
-    psf_stack                   : longblob                      # stack embedding the bead
-    center_x                    : float                         # pixel coordinate
-    center_y                    : float                         # pixel coordinate
-    center_z                    : float                         # pixel coordinate
-    base_x                      : float                         # base intensity in x projection
-    base_y                      : float                         # base intensity in y projection
-    base_z                      : float                         # base intensity in z projection
-    amplitude_x                 : float                         # bead iintensity in x projection
-    amplitude_y                 : float                         # bead iintensity in y projection
-    amplitude_z                 : float                         # bead iintensity in z projection
-    sigma_x                     : float                         # full width at half magnitude
-    sigma_y                     : float                         # full width at half magnitude
-    sigma_z                     : float                         # full width at half magnitude
-    xi                          : longblob                      # (um) x-projection coordinates
-    yi                          : longblob                      # (um) y-projection coordinates
-    zi                          : longblob                      # (um) z-projection coordinates
-    proj_x                      : longblob                      # x projection
-    proj_y                      : longblob                      # x projection
-    proj_z                      : longblob                      # x projection
-    """
+    class BeadPsf(dj.Part):
+        definition = """
+        -> master
+        bead_idx                    : smallint                      # bead number in the stack
+        ---
+        dx                          : float                         # (um) pixel pitch
+        dy                          : float                         # (um) pixel pitch
+        dz                          : float                         # (um) slice pitch
+        psf_stack                   : longblob                      # stack embedding the bead
+        center_x                    : float                         # pixel coordinate
+        center_y                    : float                         # pixel coordinate
+        center_z                    : float                         # pixel coordinate
+        base_x                      : float                         # base intensity in x projection
+        base_y                      : float                         # base intensity in y projection
+        base_z                      : float                         # base intensity in z projection
+        amplitude_x                 : float                         # bead intensity in x projection
+        amplitude_y                 : float                         # bead intensity in y projection
+        amplitude_z                 : float                         # bead intensity in z projection
+        sigma_x                     : float                         # full width at half magnitude
+        sigma_y                     : float                         # full width at half magnitude
+        sigma_z                     : float                         # full width at half magnitude
+        xi                          : longblob                      # (um) x-projection coordinates
+        yi                          : longblob                      # (um) y-projection coordinates
+        zi                          : longblob                      # (um) z-projection coordinates
+        proj_x                      : longblob                      # x projection
+        proj_y                      : longblob                      # x projection
+        proj_z                      : longblob                      # x projection
+        """
 
 
 @schema
